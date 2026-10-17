@@ -1,0 +1,32 @@
+{
+  "name": "@remote-arc/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "c8 --all --include=src/worker/**/*.ts --check-coverage --lines=90 --statements=90 --branches=90 --functions=90 --reporter=text node --experimental-strip-types scripts/worker-test.mjs",
+    "dry-run": "wrangler deploy --dry-run --outdir work/worker-dryrun",
+    "deploy": "node scripts/deploy.mjs",
+    "test:policy": "node scripts/deploy-policy-test.mjs"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260924.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "c8": "12.0.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vite": "7.3.6",
+    "wrangler": "4.137.0"
+  },
+  "packageManager": "pnpm@10.17.1"
+}

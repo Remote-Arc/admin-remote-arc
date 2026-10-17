@@ -1,0 +1,67 @@
+name: Deploy Admin
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: remote-arc-admin-production
+  cancel-in-progress: false
+jobs:
+  approval-policy:
+    if: github.ref == 'refs/heads/master' && github.actor == 'yaohuangguan'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Require actual production reviewer protection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/$GITHUB_REPOSITORY/environments/production" | node scripts/check-production-approval.mjs
+  deploy:
+    needs: approval-policy
+    if: github.ref == 'refs/heads/master' && github.actor == 'yaohuangguan'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Recheck reviewers, latest master and exact-SHA successful CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/$GITHUB_REPOSITORY/environments/production" | node scripts/check-production-approval.mjs
+          LATEST="$(git ls-remote origin refs/heads/master | cut -f1)"
+          test "$LATEST" = "$GITHUB_SHA"
+          gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&per_page=30" --jq '.workflow_runs[] | select(.event == "push" and .conclusion == "success") | .head_sha' | grep -Fx "$GITHUB_SHA"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Verify Cloudflare account
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 6b1d0dd4e6f7f30df92753cd1e2ee12d
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          curl --fail-with-body --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" | node --input-type=module -e 'let body="";for await(const part of process.stdin)body+=part;const data=JSON.parse(body);if(data.success!==true||data.result?.id!==process.env.CLOUDFLARE_ACCOUNT_ID)process.exit(1);'
+      - name: Deploy independent Admin Worker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 6b1d0dd4e6f7f30df92753cd1e2ee12d
+          REMOTEARC_PRODUCTION_DEPLOY: github-actions
+        run: pnpm deploy

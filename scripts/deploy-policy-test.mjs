@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { assertProductionContext } from "./deploy-policy.mjs";
+import { assertRequiredReviewers } from "./approval-policy.mjs";
+assert.doesNotThrow(()=>assertRequiredReviewers({protection_rules:[{type:"required_reviewers",reviewers:[{type:"User",reviewer:{id:123}}]}]}));
+assert.doesNotThrow(()=>assertRequiredReviewers({protection_rules:[{type:"required_reviewers",reviewers:[{type:"Team",reviewer:{id:456}}]}]}));
+for(const value of [null,{}, {protection_rules:[{type:"wait_timer"}]}, {protection_rules:[{type:"required_reviewers",reviewers:[]}]}, {protection_rules:[{type:"required_reviewers",reviewers:[{type:"User"}]}]}])assert.throws(()=>assertRequiredReviewers(value));
+const valid={GITHUB_ACTIONS:"true",GITHUB_EVENT_NAME:"workflow_dispatch",GITHUB_REF:"refs/heads/master",GITHUB_REPOSITORY:"Remote-Arc/admin-remote-arc",GITHUB_ACTOR:"yaohuangguan",REMOTEARC_PRODUCTION_DEPLOY:"github-actions",GITHUB_SHA:"a".repeat(40)};
+assert.doesNotThrow(()=>assertProductionContext(valid));
+for(const [key,value]of Object.entries({GITHUB_ACTIONS:"false",GITHUB_EVENT_NAME:"push",GITHUB_REF:"refs/heads/feature",GITHUB_REPOSITORY:"other/repo",GITHUB_ACTOR:"unapproved",REMOTEARC_PRODUCTION_DEPLOY:"",GITHUB_SHA:"bad"}))assert.throws(()=>assertProductionContext({...valid,[key]:value}));
+assert.throws(()=>assertProductionContext({}));
+console.log("PASS: Admin production promotion rejects automatic, foreign, unapproved and malformed candidates");
