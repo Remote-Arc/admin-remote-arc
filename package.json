@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-assets-test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "c8 --all --include=src/worker/**/*.ts --check-coverage --lines=90 --statements=90 --branches=90 --functions=90 --reporter=text node --experimental-strip-types scripts/worker-test.mjs",
     "dry-run": "wrangler deploy --dry-run --outdir work/worker-dryrun",
