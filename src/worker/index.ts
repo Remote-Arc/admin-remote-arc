@@ -79,7 +79,11 @@ export async function handleAdminRequest(request: Request, env: AdminEnv): Promi
       const identity = await platform(request, env, true);
       if (identity.status === 401) {
         const login = new URL("/auth/login", env.APP_ORIGIN); login.searchParams.set("return_to", env.ADMIN_ORIGIN + "/");
-        return secure(Response.redirect(login, 302));
+        const loginUrl = login.toString().replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Remote Arc Admin</title><style>body{margin:0;background:#0b1220;color:#eff6ff;font:16px/1.6 system-ui;min-height:100vh;display:grid;place-items:center;padding:20px}main{width:min(100%,420px);padding:30px;border:1px solid #2b405c;border-radius:16px;background:#121f31}h1{font-size:23px;margin:0 0 10px}p{color:#bac8d8}a{display:block;background:#e4f1ff;color:#102038;border-radius:9px;padding:11px 14px;text-align:center;text-decoration:none;font-weight:700;margin-top:20px}</style></head><body><main><h1>Remote Arc Admin</h1><p>Sign in with your Remote Arc account to continue to the admin console. Only authorized administrators can access this page.</p><a href="${loginUrl}">Sign in to continue</a></main></body></html>`;
+        return secure(new Response(request.method === "HEAD" ? null : html, {
+          status: 200, headers: { "content-type": "text/html; charset=utf-8" },
+        }));
       }
       if (!identity.ok) return identity;
       const data = await identity.json().catch(() => null) as { user?: { isAdmin?: boolean } } | null;
