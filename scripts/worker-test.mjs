@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import worker from "../src/worker/index.ts";
 const origin="https://admin.remotearc.app",id="00000000-0000-4000-8000-000000000001";
-let mode="admin",calls=[],assets=0;
-const env={ADMIN_ORIGIN:origin,APP_ORIGIN:"https://mcp.remotearc.app",ASSETS:{async fetch(){assets++;return new Response("<h1>Admin</h1>",{headers:{"content-type":"text/html"}})}},PLATFORM_ADMIN:{async fetch(request){calls.push({url:request.url,method:request.method,headers:Object.fromEntries(request.headers),body:await request.text()});
+let mode="admin",calls=[],assets=0,assetPaths=[];
+const env={ADMIN_ORIGIN:origin,APP_ORIGIN:"https://mcp.remotearc.app",ASSETS:{async fetch(request){assets++;const path=new URL(request.url).pathname;assetPaths.push(path);if(path==="/index.html")return Response.redirect(origin+"/",307);return new Response("<h1>Admin</h1>",{headers:{"content-type":"text/html"}})}},PLATFORM_ADMIN:{async fetch(request){calls.push({url:request.url,method:request.method,headers:Object.fromEntries(request.headers),body:await request.text()});
  if(mode==="offline")throw Error("private backend detail");
  if(mode==="unauthenticated")return Response.json({error:"unauthorized"},{status:401});
  if(mode==="forbidden")return Response.json({error:"forbidden"},{status:403});
@@ -20,11 +20,16 @@ assert.equal((await run(req("/api/admin/call-credits",{method:"POST",requestOrig
 assert.equal((await run(req("/api/admin/call-credits",{method:"POST",contentType:"text/plain",body:"{}"}))).status,415);
 assert.equal(calls.length,0,"Rejected requests never reach the platform");
 let response=await run(req("/"));assert.equal(response.status,200);assert.equal(assets,1);
+assert.equal(assetPaths[0],"/","Authenticated Admin must request the canonical root, never /index.html (Cloudflare 307 loop)");
 for(const header of ["cache-control","x-robots-tag","x-frame-options","content-security-policy"])assert.ok(response.headers.has(header));
 assert.match(response.headers.get("cache-control"),/no-store/);
 assert.equal(calls[0].url,origin+"/api/me");assert.equal(calls[0].headers.cookie,"rl_session=private-test-session");assert.equal(calls[0].headers["x-remote-arc-role"],undefined);
 response=await run(req("/overview",{method:"HEAD"}));assert.equal(await response.text(),"");
 assert.equal((await run(req("/index.html"))).status,200,"Direct HTML cannot bypass identity checks");
+assert.deepEqual(assetPaths,["/","/","/"],"All authorized HTML routes must use the canonical root");
+const dangerousRedirect = await run(req("/"),{...env,ASSETS:{async fetch(){return Response.redirect(origin+"/",307);}}});
+assert.equal(dangerousRedirect.status,502,"Never forward any static asset redirect to a signed-in browser");
+assert.equal(dangerousRedirect.headers.get("location"),null);
 mode="unauthenticated";response=await run(req("/"));assert.equal(response.status,200,"Unauthenticated Admin must not auto-redirect in a loop");
 const signInPage=await response.text();
 assert.match(signInPage,/Remote Arc Admin/);

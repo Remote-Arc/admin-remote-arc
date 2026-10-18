@@ -89,7 +89,10 @@ export async function handleAdminRequest(request: Request, env: AdminEnv): Promi
       const data = await identity.json().catch(() => null) as { user?: { isAdmin?: boolean } } | null;
       if (data?.user?.isAdmin !== true) return error("forbidden", 403);
     }
-    const response = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url), request));
+    const response = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
+    // Cloudflare canonically redirects /index.html to /. Never forward an
+    // asset redirect from this authenticated route back to the browser.
+    if (response.status >= 300 && response.status < 400) return error("admin_asset_redirect_blocked", 502);
     return secure(request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response);
   }
   if (["GET", "HEAD"].includes(request.method) && (url.pathname.startsWith("/assets/") || url.pathname === "/remote-arc.svg")) return secure(await env.ASSETS.fetch(request));
