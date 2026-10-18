@@ -95,7 +95,7 @@ export async function handleAdminRequest(request: Request, env: AdminEnv): Promi
     if (response.status >= 300 && response.status < 400) return error("admin_asset_redirect_blocked", 502);
     return secure(request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response);
   }
-  if (["GET", "HEAD"].includes(request.method) && (url.pathname.startsWith("/assets/") || url.pathname === "/remote-arc.svg")) return secure(await env.ASSETS.fetch(request));
+  if (["GET", "HEAD"].includes(request.method) && (url.pathname.startsWith("/admin-assets/") || url.pathname === "/remote-arc.svg")) return secure(await env.ASSETS.fetch(request));
   return error("not_found", 404);
 }
 export default { async fetch(request: Request, env: AdminEnv): Promise<Response> { try { return await handleAdminRequest(request, env); } catch { return error("admin_service_unavailable", 503); } } };
